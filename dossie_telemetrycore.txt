@@ -1,0 +1,281 @@
+# Dossiê TelemetryCore API — Planeamento Completo
+
+Legenda: `[x]` implementado | `[ ]` pendente ou parcialmente implementado
+
+---
+
+## Bloco 1 — Setup e Rotas Base
+
+### Objetivo
+Criar o projeto FastAPI, estrutura de pastas e 3 rotas base com dados em memória.
+
+### Estrutura de pastas
+```
+projeto_backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   └── routers/
+│       └── __init__.py
+├── requirements.txt
+└── README.md
+```
+
+### [x] Exercício 1.1 — Rota de saúde
+- **Rota:** `GET /health`
+- **Resposta:** `{ "status": "ok" }`
+- **Status:** `200 OK`
+
+### [x] Exercício 1.2 — Listar sensores (mock)
+- **Rota:** `GET /sensores`
+- **Resposta:** `[]`
+- **Status:** `200 OK`
+
+### [x] Exercício 1.3 — Criar sensor (implementado com base de dados)
+- **Rota:** `POST /sensores`
+- **Body:**
+```json
+{ "nome": "Sensor Temperatura Forno A", "tipo": "temperatura", "localizacao": "Forno A" }
+```
+- **Resposta:**
+```json
+{ "id": 1, "nome": "Sensor Temperatura Forno A", "tipo": "temperatura", "localizacao": "Forno A" }
+```
+- **Status:** `201 Created` | `422` se faltar campo obrigatório
+- **Regras:** `id` por contador em memória, guardar em lista global.
+
+### [x] Exercício 1.4 — Obter sensor por ID (implementado com base de dados)
+- **Rota:** `GET /sensores/{id}`
+- **Status:** `200 OK` | `404 Not Found`
+- **Resposta 404:** `{ "detail": "Sensor não encontrado" }`
+
+### [x] Exercício 1.5 — Apagar sensor (implementado com base de dados)
+- **Rota:** `DELETE /sensores/{id}`
+- **Status:** `204 No Content` | `404 Not Found`
+
+---
+
+## Bloco 2 — Validação de Dados (Pydantic)
+
+### Objetivo
+Substituir dicionários soltos por schemas Pydantic rigorosos. Nenhuma validação manual com `if`.
+
+### [ ] Exercício 2.1 — Schema de criação de sensor
+- **Rota:** `POST /sensores`
+- **Regras:**
+  - `nome`: string, mínimo 3 caracteres, máximo 100
+  - `tipo`: string, deve ser um de `["temperatura", "pressao", "vibracao", "humidade"]`
+  - `localizacao`: string, mínimo 3 caracteres, máximo 150
+- **Status:** `201 Created` | `422 Unprocessable Entity`
+
+### [ ] Exercício 2.2 — Schema de resposta de sensor
+- **Rota:** `GET /sensores/{id}`
+- **Resposta:**
+```json
+{ "id": 1, "nome": "...", "tipo": "...", "localizacao": "...", "criado_em": "2026-09-28T10:00:00" }
+```
+- **Regra:** `criado_em` é um datetime gerado automaticamente no momento da criação.
+
+### [x] Exercício 2.3 — Schema de criação de leitura
+- **Rota:** `POST /sensores/{id}/leituras`
+- **Body:**
+```json
+{ "valor": 72.5, "unidade": "C" }
+```
+- **Regras:**
+  - `valor`: float, obrigatório
+  - `unidade`: string, máximo 10 caracteres
+- **Status:** `201 Created` | `422` | `404` se sensor não existe
+
+### [ ] Exercício 2.4 — Schema de resposta de leitura
+- **Rota:** `GET /sensores/{id}/leituras`
+- **Resposta:**
+```json
+[
+  { "id": 1, "sensor_id": 1, "valor": 72.5, "unidade": "C", "timestamp": "2026-09-28T10:05:00" }
+]
+```
+- **Status:** `200 OK` | `404` se sensor não existe
+
+---
+
+## Bloco 3 — Ligação ao PostgreSQL
+
+### Objetivo
+Criar a base de dados, tabelas e conectar o FastAPI ao PostgreSQL com SQLAlchemy.
+
+### [x] Exercício 3.1 — Configuração da base de dados
+- **Tecnologia:** SQLAlchemy + psycopg2
+- **Tabelas:**
+  - `sensores`: id (PK), nome, tipo, localizacao, criado_em
+  - `leituras`: id (PK), sensor_id (FK), valor, unidade, timestamp
+- **Regras:**
+  - `sensor_id` em `leituras` tem `ON DELETE CASCADE`
+  - `criado_em` e `timestamp` são `DateTime` com default `datetime.utcnow`
+
+### [x] Exercício 3.2 — Session management
+- **Objetivo:** Criar uma dependência FastAPI que abre e fecha a session por request.
+- **Regra:** Nunca uses sessões globais. Cada request tem a sua sessão.
+
+### [ ] Exercício 3.3 — Refactor do Bloco 1 para PostgreSQL
+- **Rotas afetadas:** todas as do Bloco 1
+- **Regras:**
+  - Trocar listas em memória por queries SQLAlchemy
+  - Manter os mesmos status codes e formatos de resposta
+  - O `id` passa a ser gerado pela base de dados
+
+---
+
+## Bloco 4 — CRUD Completo de Sensores
+
+### Objetivo
+CRUD completo e funcional contra PostgreSQL.
+
+### [x] Exercício 4.1 — Listar sensores com paginação
+- **Rota:** `GET /sensores`
+- **Query params:** `skip` (int, default 0), `limit` (int, default 100, max 100)
+- **Resposta:**
+```json
+{ "total": 50, "items": [ ... ] }0
+```
+- **Status:** `200 OK`
+
+### [x] Exercício 4.2 — Criar sensor
+- **Rota:** `POST /sensores`
+- **Body:** mesmo do Bloco 2
+- **Status:** `201 Created` | `422`
+
+### [x] Exercício 4.3 — Obter sensor por ID
+- **Rota:** `GET /sensores/{id}`
+- **Status:** `200 OK` | `404`
+
+### [x] Exercício 4.4 — Atualizar sensor (PUT)
+- **Rota:** `PUT /sensores/{id}`
+- **Body:** mesmo do POST (todos os campos obrigatórios)
+- **Resposta:** sensor atualizado
+- **Status:** `200 OK` | `404` | `422`
+
+### [x] Exercício 4.5 — Atualizar sensor parcialmente (PATCH)
+- **Rota:** `PATCH /sensores/{id}`
+- **Body:** pelo menos um campo presente
+- **Resposta:** sensor atualizado
+- **Status:** `200 OK` | `404` | `422`
+
+### [x] Exercício 4.6 — Apagar sensor
+- **Rota:** `DELETE /sensores/{id}`
+- **Status:** `204 No Content` | `404`
+- **Regra:** As leituras associadas devem ser apagadas automaticamente (CASCADE).
+
+---
+
+## Bloco 5 — CRUD Completo de Leituras
+
+### Objetivo
+CRUD completo de leituras associadas a sensores.
+
+### [x] Exercício 5.1 — Criar leitura
+- **Rota:** `POST /sensores/{id}/leituras`
+- **Body:** `{ "valor": 72.5, "unidade": "C" }`
+- **Status:** `201 Created` | `404` | `422`
+
+### [x] Exercício 5.2 — Listar leituras de um sensor
+- **Rota:** `GET /sensores/{id}/leituras`
+- **Query params:** `skip`, `limit`
+- **Resposta:**
+```json
+{ "total": 25, "items": [ ... ] }
+```
+- **Status:** `200 OK` | `404`
+
+### [x] Exercício 5.3 — Obter leitura por ID
+- **Rota:** `GET /leituras/{id}`
+- **Status:** `200 OK` | `404`
+
+### [x] Exercício 5.4 — Apagar leitura
+- **Rota:** `DELETE /leituras/{id}`
+- **Status:** `204 No Content` | `404`
+
+---
+
+## Bloco 6 — Regras de Negócio e Queries Avançadas
+
+### Objetivo
+Queries complexas e regras de domínio.
+
+### [x] Exercício 6.1 — Filtrar leituras por tipo de sensor
+- **Rota:** `GET /sensores/{id}/leituras?tipo=temperatura`
+- **Regra:** Devolve apenas leituras de sensores do tipo especificado.
+
+### [x] Exercício 6.2 — Estatísticas de leituras
+- **Rota:** `GET /sensores/{id}/leituras/stats`
+- **Resposta:**
+```json
+{ "count": 100, "min": 45.2, "max": 98.7, "media": 72.1 }
+```
+- **Status:** `200 OK` | `404`
+
+### [x] Exercício 6.3 — Leituras por intervalo de tempo
+- **Rota:** `GET /sensores/{id}/leituras?inicio=2026-09-01&fim=2026-09-30`
+- **Regra:** `inicio` e `fim` são datas ISO. Filtra leituras nesse intervalo.
+
+### [x] Exercício 6.4 — Sensores sem leituras
+- **Rota:** `GET /sensores/sem-leituras`
+- **Resposta:** lista de sensores que nunca tiveram leituras.
+- **Status:** `200 OK`
+
+## [x ] Exercício 6.5 — Filtrar leituras por tipo de sensor
+- **Rota:** `GET /sensores/{id}/leituras?tipo=temperatura`
+- **Regra:** Devolve apenas leituras de sensores do tipo especificado.
+---
+
+## Bloco 7 — Tratamento de Erros e Respostas Padronizadas
+
+### Objetivo
+Respostas de erro consistentes em toda a API.
+
+### [ x] Exercício 7.1 — Handler global de exceções
+- **Objetivo:** Criar um handler que captura exceções não tratadas e devolve:
+```json
+{ "detail": "Erro interno do servidor" }
+```
+- **Status:** `500 Internal Server Error`
+
+### [x ] Exercício 7.2 — Handler de erro de validação
+- **Objetivo:** Garantir que todos os erros `422` têm o formato:
+```json
+{ "detail": [ { "loc": ["body", "nome"], "msg": "field required", "type": "value_error.missing" } ] }
+```
+
+### [ x] Exercício 7.3 — Handler de não encontrado
+- **Objetivo:** Garantir que todos os `404` devolvem `{ "detail": "..." }` com mensagem descritiva.
+
+---
+
+## Bloco 8 — Testes Manuais (Swagger/Postman)
+
+### Objetivo
+Validar todos os cenários de sucesso e erro documentados.
+
+### [ ] Exercício 8.1 — Coleção Postman
+- **Objetivo:** Criar uma coleção com todas as rotas.
+- **Regras:**
+  - Um request por rota
+  - Testes de status code para cada request
+  - Testes de formato de resposta para os principais cenários
+
+### [ ] Exercício 8.2 — Cenários de erro
+- **Objetivo:** Testar manualmente:
+  - Criar sensor com tipo inválido → `422`
+  - Obter sensor inexistente → `404`
+  - Criar leitura em sensor inexistente → `404`
+  - Apagar sensor e confirmar que leituras foram apagadas → `204`
+
+---
+
+## Ordem de Implementação
+
+```
+Bloco 1 → Bloco 2 → Bloco 3 → Bloco 4 → Bloco 5 → Bloco 6 → Bloco 7 → Bloco 8
+```
+
+Cada bloco deve estar 100% funcional no Swagger antes de avançares.
